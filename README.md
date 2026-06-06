@@ -6,6 +6,9 @@ Aplicativo desktop educacional em Python para carregar uma imagem, aplicar opera
 
 - abrir imagens PNG, JPEG, BMP, TIFF e WebP;
 - visualizar lado a lado a imagem original e o resultado;
+- ampliar, reduzir, ajustar à janela e movimentar cada imagem;
+- consultar coordenadas e valores BGR/cinza ao passar o cursor sobre um pixel;
+- comparar os histogramas da imagem original e do resultado atual;
 - aplicar operações sucessivas (o resultado de um botão é a entrada do próximo);
 - restaurar a imagem original;
 - salvar o resultado em um novo arquivo;
@@ -74,8 +77,20 @@ python app.py
 3. Clique em uma operação no menu esquerdo.
 4. Observe o resultado à direita.
 5. Aplique outros filtros se desejar. Eles são **cumulativos**.
-6. Use **Restaurar original** para descartar as modificações.
-7. Clique em **Salvar resultado** e escolha o nome e o formato do arquivo.
+6. Use os botões **+**, **−** ou **Ajustar** para controlar o zoom de cada visualização.
+7. Arraste uma imagem com o botão esquerdo do mouse para movimentá-la quando estiver ampliada. A roda do mouse também controla o zoom.
+8. Passe o cursor sobre a imagem para ver `X`, `Y` e os valores `B`, `G`, `R` ou o nível de cinza do pixel.
+9. Clique em **Exibir histogramas** para comparar a distribuição de intensidades da original e do resultado.
+10. Use **Restaurar original** para descartar as modificações.
+11. Clique em **Salvar resultado** e escolha o nome e o formato do arquivo.
+
+### Como interpretar o histograma
+
+- O eixo horizontal representa as intensidades de `0` (escuro) a `255` (claro).
+- O eixo vertical representa a quantidade de pixels em cada intensidade.
+- Imagens coloridas exibem curvas separadas para os canais azul, verde e vermelho.
+- Imagens em tons de cinza exibem uma única curva.
+- A janela possui abas para comparar a imagem original com o resultado atual.
 
 > Os tamanhos dos elementos estruturantes são inicialmente valores didáticos fixos. Uma próxima evolução pode adicionar controles para tamanho, formato e número de iterações.
 
@@ -84,10 +99,13 @@ python app.py
 ```text
 .
 ├── app.py                    # Interface Tkinter e integração com os filtros
+├── histogram_window.py       # Gráfico de histograma original/resultado
 ├── image_filters.py          # Funções de processamento OpenCV
+├── image_viewer.py           # Zoom, pan e inspeção de pixels
 ├── requirements.txt          # Dependências Python
 └── tests/
-    └── test_image_filters.py # Testes automatizados das operações
+    ├── test_image_filters.py # Testes das operações e histogramas
+    └── test_image_viewer.py  # Testes da conversão de coordenadas
 ```
 
 ## Análise e correções dos códigos recebidos

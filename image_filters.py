@@ -153,6 +153,19 @@ def remove_noise(image: Image, size: int = 3) -> Image:
     return cv2.morphologyEx(image, cv2.MORPH_OPEN, cross)
 
 
+def calculate_histograms(image: Image) -> dict[str, Image]:
+    """Calcula histogramas de 256 níveis para uma imagem cinza ou BGR."""
+    _validate_image(image)
+    if image.ndim == 2:
+        return {"Cinza": cv2.calcHist([image], [0], None, [256], [0, 256]).ravel()}
+
+    labels = ("Azul", "Verde", "Vermelho")
+    return {
+        label: cv2.calcHist([image], [channel], None, [256], [0, 256]).ravel()
+        for channel, label in enumerate(labels)
+    }
+
+
 FILTERS: dict[str, FilterFunction] = {
     "Tons de cinza": to_grayscale,
     "Canal azul": show_blue_channel,

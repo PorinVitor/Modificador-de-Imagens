@@ -43,6 +43,18 @@ class ImageFilterTests(unittest.TestCase):
         filters.erode(source)
         np.testing.assert_array_equal(source, self.color)
 
+    def test_color_histograms_have_three_channels_and_256_bins(self):
+        histograms = filters.calculate_histograms(self.color)
+        self.assertEqual(set(histograms), {"Azul", "Verde", "Vermelho"})
+        self.assertTrue(all(histogram.shape == (256,) for histogram in histograms.values()))
+        self.assertTrue(all(int(histogram.sum()) == 625 for histogram in histograms.values()))
+
+    def test_grayscale_histogram_has_one_channel(self):
+        gray = filters.to_grayscale(self.color)
+        histograms = filters.calculate_histograms(gray)
+        self.assertEqual(list(histograms), ["Cinza"])
+        self.assertEqual(histograms["Cinza"].shape, (256,))
+
 
 if __name__ == "__main__":
     unittest.main()
