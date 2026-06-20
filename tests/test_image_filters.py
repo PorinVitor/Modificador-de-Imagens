@@ -55,6 +55,18 @@ class ImageFilterTests(unittest.TestCase):
         self.assertEqual(list(histograms), ["Cinza"])
         self.assertEqual(histograms["Cinza"].shape, (256,))
 
+    def test_sobel_and_canny_return_grayscale_edges(self):
+        sobel = filters.sobel_operator(self.color)
+        canny = filters.canny_detector(self.color)
+        self.assertEqual(sobel.shape, self.color.shape[:2])
+        self.assertEqual(canny.shape, self.color.shape[:2])
+        self.assertEqual(sobel.dtype, np.uint8)
+        self.assertEqual(canny.dtype, np.uint8)
+
+    def test_canny_rejects_invalid_thresholds(self):
+        with self.assertRaises(ValueError):
+            filters.canny_detector(self.color, 200, 100)
+
 
 if __name__ == "__main__":
     unittest.main()

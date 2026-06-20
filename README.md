@@ -9,6 +9,7 @@ Aplicativo desktop educacional em Python para carregar uma imagem, aplicar opera
 - ampliar, reduzir, ajustar à janela e movimentar cada imagem;
 - consultar coordenadas e valores BGR/cinza ao passar o cursor sobre um pixel;
 - comparar os histogramas da imagem original e do resultado atual;
+- selecionar uma região da imagem de resultado para aplicar tratamentos localizados;
 - aplicar operações sucessivas (o resultado de um botão é a entrada do próximo);
 - restaurar a imagem original;
 - salvar o resultado em um novo arquivo;
@@ -21,6 +22,7 @@ Aplicativo desktop educacional em Python para carregar uma imagem, aplicar opera
 | Cores | tons de cinza, canais azul/verde/vermelho e troca vermelho/azul com `split`/`merge` |
 | Histograma e suavização | filtro de mediana e equalização de histograma |
 | Morfologia | erosão, dilatação, abertura, fechamento, gradiente morfológico e Top Hat |
+| Bordas | operador de Sobel e detector de Canny |
 | Realce em cinza | abertura em cinza e fechamento em cinza |
 | Ruído | remoção de pequenos pontos claros por abertura morfológica |
 
@@ -80,9 +82,23 @@ python app.py
 6. Use os botões **+**, **−** ou **Ajustar** para controlar o zoom de cada visualização.
 7. Arraste uma imagem com o botão esquerdo do mouse para movimentá-la quando estiver ampliada. A roda do mouse também controla o zoom.
 8. Passe o cursor sobre a imagem para ver `X`, `Y` e os valores `B`, `G`, `R` ou o nível de cinza do pixel.
-9. Clique em **Exibir histogramas** para comparar a distribuição de intensidades da original e do resultado.
-10. Use **Restaurar original** para descartar as modificações.
-11. Clique em **Salvar resultado** e escolha o nome e o formato do arquivo.
+9. Clique em **Selecionar região** e arraste sobre a imagem de resultado para limitar os próximos tratamentos a essa área.
+10. Use **Limpar seleção** para voltar a aplicar os tratamentos na imagem inteira.
+11. Clique em **Exibir histogramas** para comparar a distribuição de intensidades da original e do resultado.
+12. Use **Restaurar original** para descartar as modificações.
+13. Clique em **Salvar resultado** e escolha o nome e o formato do arquivo.
+
+### Tratamento em uma região selecionada
+
+- A seleção é feita somente na imagem de **Resultado**, pois ela representa a imagem que será modificada.
+- Enquanto uma região estiver marcada, qualquer botão de operação será aplicado apenas dentro do retângulo selecionado.
+- Filtros que geram tons de cinza, como **Operador de Sobel** e **Detector de Canny**, são convertidos automaticamente para caber dentro de uma imagem colorida.
+- Use **Limpar seleção** para remover o retângulo e voltar ao processamento da imagem inteira.
+
+### Operador de Sobel e Detector de Canny
+
+- **Operador de Sobel:** realça mudanças de intensidade combinando gradientes horizontal e vertical.
+- **Detector de Canny:** gera uma imagem de bordas mais fina, usando dois limiares internos configurados inicialmente como valores didáticos fixos.
 
 ### Como interpretar o histograma
 
@@ -104,8 +120,8 @@ python app.py
 ├── image_viewer.py           # Zoom, pan e inspeção de pixels
 ├── requirements.txt          # Dependências Python
 └── tests/
-    ├── test_image_filters.py # Testes das operações e histogramas
-    └── test_image_viewer.py  # Testes da conversão de coordenadas
+    ├── test_image_filters.py # Testes das operações, bordas e histogramas
+    └── test_image_viewer.py  # Testes da conversão de coordenadas e seleção
 ```
 
 ## Análise e correções dos códigos recebidos

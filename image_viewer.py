@@ -11,6 +11,7 @@ import numpy as np
 from PIL import Image, ImageTk
 
 PixelCallback = Callable[[int, int, np.ndarray | np.generic], None]
+SelectionCallback = Callable[[tuple[int, int, int, int]], None]
 
 
 class ImageViewer(ttk.Frame):
@@ -25,6 +26,7 @@ class ImageViewer(ttk.Frame):
         master: tk.Misc,
         empty_text: str,
         pixel_callback: PixelCallback | None = None,
+        selection_callback: SelectionCallback | None = None,
     ) -> None:
         super().__init__(master)
         self.image: np.ndarray | None = None
@@ -32,6 +34,10 @@ class ImageViewer(ttk.Frame):
         self.zoom = 1.0
         self.empty_text = empty_text
         self.pixel_callback = pixel_callback
+        self.selection_callback = selection_callback
+        self.selection_mode = False
+        self.selection: tuple[int, int, int, int] | None = None
+        self._selection_start: tuple[int, int] | None = None
         self._fit_after_id: str | None = None
 
         self.columnconfigure(0, weight=1)
@@ -66,8 +72,9 @@ class ImageViewer(ttk.Frame):
         vertical.grid(row=0, column=1, sticky="ns")
         horizontal.grid(row=1, column=0, sticky="ew")
 
-        self.canvas.bind("<ButtonPress-1>", self._start_pan)
-        self.canvas.bind("<B1-Motion>", self._pan)
+        self.canvas.bind("<ButtonPress-1>", self._handle_button_press)
+        self.canvas.bind("<B1-Motion>", self._handle_drag)
+        self.canvas.bind("<ButtonRelease-1>", self._finish_selection)
         self.canvas.bind("<Motion>", self._report_pixel)
         self.canvas.bind("<MouseWheel>", self._mouse_wheel)
         self.canvas.bind("<Button-4>", lambda event: self._zoom_at(event, self.ZOOM_STEP))
@@ -78,6 +85,7 @@ class ImageViewer(ttk.Frame):
     def set_image(self, image: np.ndarray, fit: bool = False) -> None:
         """Atualiza a imagem, preservando o zoom ou ajustando-a à janela."""
         self.image = image.copy()
+        self.clear_selection()
         if fit:
             self.after_idle(self.fit_to_window)
         else:
@@ -87,7 +95,25 @@ class ImageViewer(ttk.Frame):
         self.image = None
         self.photo = None
         self.zoom = 1.0
+        self.selection = None
+        self._selection_start = None
         self._draw_empty_message()
+
+    def set_selection_mode(self, enabled: bool) -> None:
+        """Ativa ou desativa o modo de seleção retangular."""
+        self.selection_mode = enabled
+        self.canvas.configure(cursor="crosshair" if enabled else "fleur")
+
+    def clear_selection(self) -> None:
+        """Remove a região selecionada, se existir."""
+        self.selection = None
+        self._selection_start = None
+        self.canvas.delete("selection")
+
+    def set_selection(self, selection: tuple[int, int, int, int] | None) -> None:
+        """Define uma seleção já calculada e atualiza o desenho no Canvas."""
+        self.selection = selection
+        self._draw_selection()
 
     def zoom_in(self) -> None:
         self._set_zoom(self.zoom * self.ZOOM_STEP)
@@ -134,6 +160,7 @@ class ImageViewer(ttk.Frame):
         self.canvas.create_image(0, 0, anchor="nw", image=self.photo, tags="image")
         self.canvas.configure(scrollregion=(0, 0, display_width, display_height))
         self.zoom_text.configure(text=f"{self.zoom * 100:.0f}%")
+        self._draw_selection()
 
     def _draw_empty_message(self) -> None:
         self.canvas.delete("all")
@@ -150,12 +177,39 @@ class ImageViewer(ttk.Frame):
         self.canvas.configure(scrollregion=(0, 0, width, height))
         self.zoom_text.configure(text="—")
 
-    def _start_pan(self, event: tk.Event) -> None:
+    def _handle_button_press(self, event: tk.Event) -> None:
+        if self.selection_mode and self.image is not None:
+            self._selection_start = self.canvas_to_image(
+                self.canvas.canvasx(event.x), self.canvas.canvasy(event.y), self.zoom
+            )
+            self.selection = (*self._selection_start, *self._selection_start)
+            self._draw_selection()
+            return
         self.canvas.scan_mark(event.x, event.y)
 
-    def _pan(self, event: tk.Event) -> None:
+    def _handle_drag(self, event: tk.Event) -> None:
+        if self.selection_mode and self.image is not None and self._selection_start is not None:
+            end = self.canvas_to_image(
+                self.canvas.canvasx(event.x), self.canvas.canvasy(event.y), self.zoom
+            )
+            self.selection = (*self._selection_start, *end)
+            self._draw_selection()
+            self._report_pixel(event)
+            return
         self.canvas.scan_dragto(event.x, event.y, gain=1)
         self._report_pixel(event)
+
+    def _finish_selection(self, event: tk.Event) -> None:
+        if not self.selection_mode or self.image is None or self._selection_start is None:
+            return
+        end = self.canvas_to_image(
+            self.canvas.canvasx(event.x), self.canvas.canvasy(event.y), self.zoom
+        )
+        self.selection = self.normalize_selection((*self._selection_start, *end), self.image.shape)
+        self._selection_start = None
+        self._draw_selection()
+        if self.selection_callback is not None:
+            self.selection_callback(self.selection)
 
     def _mouse_wheel(self, event: tk.Event) -> str:
         factor = self.ZOOM_STEP if event.delta > 0 else 1 / self.ZOOM_STEP
@@ -177,6 +231,22 @@ class ImageViewer(ttk.Frame):
             self.canvas.yview_moveto(top / display_height)
         return "break"
 
+    def _draw_selection(self) -> None:
+        self.canvas.delete("selection")
+        if self.selection is None:
+            return
+        x1, y1, x2, y2 = self.selection
+        self.canvas.create_rectangle(
+            x1 * self.zoom,
+            y1 * self.zoom,
+            x2 * self.zoom,
+            y2 * self.zoom,
+            outline="#ffd54f",
+            width=2,
+            dash=(6, 3),
+            tags="selection",
+        )
+
     def _report_pixel(self, event: tk.Event) -> None:
         if self.image is None or self.pixel_callback is None:
             return
@@ -197,6 +267,23 @@ class ImageViewer(ttk.Frame):
         self._fit_after_id = None
         if self.image is not None and self.photo is None:
             self.fit_to_window()
+
+    @staticmethod
+    def normalize_selection(
+        selection: tuple[int, int, int, int], image_shape: tuple[int, ...]
+    ) -> tuple[int, int, int, int]:
+        """Normaliza e limita uma seleção ao tamanho da imagem."""
+        height, width = image_shape[:2]
+        x1, y1, x2, y2 = selection
+        left = min(max(min(x1, x2), 0), width - 1)
+        right = min(max(max(x1, x2), 0), width)
+        top = min(max(min(y1, y2), 0), height - 1)
+        bottom = min(max(max(y1, y2), 0), height)
+        if right <= left:
+            right = min(left + 1, width)
+        if bottom <= top:
+            bottom = min(top + 1, height)
+        return left, top, right, bottom
 
     @staticmethod
     def canvas_to_image(canvas_x: float, canvas_y: float, zoom: float) -> tuple[int, int]:

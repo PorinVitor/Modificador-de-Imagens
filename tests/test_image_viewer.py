@@ -11,6 +11,15 @@ class ImageViewerCoordinateTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             ImageViewer.canvas_to_image(10, 10, 0)
 
+    def test_selection_is_normalized_and_clipped(self):
+        self.assertEqual(
+            ImageViewer.normalize_selection((8, 9, -3, 2), (10, 12, 3)),
+            (0, 2, 8, 9),
+        )
+
+    def test_zero_area_selection_keeps_one_pixel(self):
+        self.assertEqual(ImageViewer.normalize_selection((4, 5, 4, 5), (10, 10)), (4, 5, 5, 6))
+
 
 if __name__ == "__main__":
     unittest.main()

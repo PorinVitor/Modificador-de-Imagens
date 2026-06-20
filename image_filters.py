@@ -153,6 +153,24 @@ def remove_noise(image: Image, size: int = 3) -> Image:
     return cv2.morphologyEx(image, cv2.MORPH_OPEN, cross)
 
 
+def sobel_operator(image: Image) -> Image:
+    """Destaca bordas combinando os gradientes horizontal e vertical de Sobel."""
+    gray = to_grayscale(image)
+    grad_x = cv2.Sobel(gray, cv2.CV_64F, 1, 0, ksize=3)
+    grad_y = cv2.Sobel(gray, cv2.CV_64F, 0, 1, ksize=3)
+    abs_x = cv2.convertScaleAbs(grad_x)
+    abs_y = cv2.convertScaleAbs(grad_y)
+    return cv2.addWeighted(abs_x, 0.5, abs_y, 0.5, 0)
+
+
+def canny_detector(image: Image, lower_threshold: int = 100, upper_threshold: int = 200) -> Image:
+    """Detecta bordas com o algoritmo de Canny."""
+    if lower_threshold < 0 or upper_threshold < 0 or lower_threshold >= upper_threshold:
+        raise ValueError("Os limiares do Canny devem ser positivos e o primeiro menor que o segundo.")
+    gray = to_grayscale(image)
+    return cv2.Canny(gray, lower_threshold, upper_threshold)
+
+
 def calculate_histograms(image: Image) -> dict[str, Image]:
     """Calcula histogramas de 256 níveis para uma imagem cinza ou BGR."""
     _validate_image(image)
@@ -183,4 +201,6 @@ FILTERS: dict[str, FilterFunction] = {
     "Gradiente morfológico": morphological_gradient,
     "Top Hat": top_hat,
     "Remoção de ruído": remove_noise,
+    "Operador de Sobel": sobel_operator,
+    "Detector de Canny": canny_detector,
 }

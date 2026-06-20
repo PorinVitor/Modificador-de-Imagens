@@ -32,6 +32,7 @@ class ImageModifierApp:
         self.original_image: np.ndarray | None = None
         self.current_image: np.ndarray | None = None
         self.current_path: Path | None = None
+        self.selected_region: tuple[int, int, int, int] | None = None
 
         self.status = tk.StringVar(value="Carregue uma imagem para começar.")
         self.pixel_info = tk.StringVar(
@@ -117,12 +118,20 @@ class ImageModifierApp:
             result_frame,
             "O resultado aparecerá aqui",
             lambda x, y, value: self._show_pixel("Resultado", x, y, value),
+            self._set_selected_region,
         )
         self.result_viewer.grid(row=0, column=0, sticky="nsew")
 
         actions = ttk.Frame(workspace)
         actions.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(12, 0))
         ttk.Button(actions, text="Restaurar original", command=self.restore_original).pack(side="left")
+        self.selection_button = ttk.Button(
+            actions, text="Selecionar região", command=self.toggle_selection_mode
+        )
+        self.selection_button.pack(side="left", padx=(8, 0))
+        ttk.Button(actions, text="Limpar seleção", command=self.clear_selection).pack(
+            side="left", padx=(8, 0)
+        )
         ttk.Button(actions, text="Exibir histogramas", command=self.show_histograms).pack(
             side="left", padx=(8, 0)
         )
@@ -147,6 +156,9 @@ class ImageModifierApp:
         self.current_path = Path(filename)
         self.original_image = image
         self.current_image = image.copy()
+        self.selected_region = None
+        self.result_viewer.set_selection_mode(False)
+        self.selection_button.configure(text="Selecionar região")
         self.original_viewer.set_image(self.original_image, fit=True)
         self.result_viewer.set_image(self.current_image, fit=True)
         height, width = image.shape[:2]
@@ -157,9 +169,18 @@ class ImageModifierApp:
             messagebox.showwarning("Imagem necessária", "Carregue uma imagem antes de aplicar um filtro.")
             return
         try:
-            self.current_image = operation(self.current_image)
-            self.result_viewer.set_image(self.current_image)
-            self.status.set(f"Operação aplicada: {name}. As alterações são cumulativas.")
+            if self.selected_region is None:
+                self.current_image = operation(self.current_image)
+                self.result_viewer.set_image(self.current_image)
+                self.status.set(f"Operação aplicada: {name}. As alterações são cumulativas.")
+            else:
+                self.current_image = self._apply_filter_to_region(operation)
+                self.result_viewer.set_image(self.current_image)
+                self.result_viewer.set_selection(self.selected_region)
+                self.status.set(
+                    f"Operação aplicada na região selecionada: {name}. "
+                    "Use Limpar seleção para voltar à imagem inteira."
+                )
         except (cv2.error, ValueError) as error:
             messagebox.showerror("Erro no processamento", str(error))
 
@@ -168,8 +189,55 @@ class ImageModifierApp:
             messagebox.showwarning("Imagem necessária", "Ainda não há uma imagem para restaurar.")
             return
         self.current_image = self.original_image.copy()
+        self.selected_region = None
         self.result_viewer.set_image(self.current_image, fit=True)
         self.status.set("A imagem original foi restaurada.")
+
+    def toggle_selection_mode(self) -> None:
+        if self.current_image is None:
+            messagebox.showwarning("Imagem necessária", "Carregue uma imagem antes de selecionar uma região.")
+            return
+        enabled = not self.result_viewer.selection_mode
+        self.result_viewer.set_selection_mode(enabled)
+        self.selection_button.configure(text="Finalizar seleção" if enabled else "Selecionar região")
+        if enabled:
+            self.status.set("Arraste sobre a imagem de resultado para selecionar a região do tratamento.")
+        else:
+            self.status.set("Modo de seleção desligado.")
+
+    def clear_selection(self) -> None:
+        self.selected_region = None
+        self.result_viewer.clear_selection()
+        self.status.set("Seleção removida. Os próximos tratamentos serão aplicados na imagem inteira.")
+
+    def _set_selected_region(self, selection: tuple[int, int, int, int]) -> None:
+        self.selected_region = selection
+        x1, y1, x2, y2 = selection
+        width = x2 - x1
+        height = y2 - y1
+        self.status.set(f"Região selecionada: X={x1}, Y={y1}, largura={width}, altura={height}.")
+
+    def _apply_filter_to_region(self, operation: Callable[[np.ndarray], np.ndarray]) -> np.ndarray:
+        if self.current_image is None or self.selected_region is None:
+            raise ValueError("Não há imagem ou região selecionada para processar.")
+        x1, y1, x2, y2 = self.selected_region
+        output = self.current_image.copy()
+        region = output[y1:y2, x1:x2]
+        processed = operation(region)
+        output[y1:y2, x1:x2] = self._match_region_channels(processed, region)
+        return output
+
+    @staticmethod
+    def _match_region_channels(processed: np.ndarray, region: np.ndarray) -> np.ndarray:
+        if processed.shape[:2] != region.shape[:2]:
+            raise ValueError("O tratamento alterou o tamanho da região selecionada.")
+        if region.ndim == processed.ndim:
+            return processed
+        if region.ndim == 3 and processed.ndim == 2:
+            return cv2.cvtColor(processed, cv2.COLOR_GRAY2BGR)
+        if region.ndim == 2 and processed.ndim == 3:
+            return cv2.cvtColor(processed[:, :, :3], cv2.COLOR_BGR2GRAY)
+        raise ValueError("O tratamento gerou um formato de imagem incompatível.")
 
     def show_histograms(self) -> None:
         if self.original_image is None or self.current_image is None:
